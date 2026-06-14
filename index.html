@@ -817,23 +817,25 @@ function renderAll(d) {
   $('banner-detail').textContent = parts.length ? parts.join(' · ') : '모든 지표 안정 구간';
 
   // 체크리스트 행
+  const tnxChg = (tnx?.cur != null && tnx?.prev != null) ? (tnx.cur - tnx.prev) : null;
   const clRows = [
-    { name: '공포탐욕지수',    valStr: fg?.cur  != null ? `${Math.round(fg.cur)} (${fgLabel(Math.round(fg.cur))})` : 'N/A', lv: lv.fg    || 'unknown' },
-    { name: 'VIX 변동성지수',  valStr: vix?.cur != null ? vix.cur.toFixed(2)            : 'N/A', lv: lv.vix   || 'unknown' },
-    { name: 'HY 스프레드',     valStr: hy       != null ? Math.round(hy * 100) + ' bp'  : 'N/A', lv: lv.hy    || 'unknown' },
-    { name: 'MOVE 지수',       valStr: move?.cur != null ? move.cur.toFixed(1)           : 'N/A', lv: lv.move  || 'unknown' },
-    { name: '10년물 금리 변화', valStr: (tnx?.cur != null && tnx?.prev != null)
-        ? ((tnx.cur - tnx.prev) >= 0 ? '+' : '') + (tnx.cur - tnx.prev).toFixed(3) + '%p'
+    { name: '공포탐욕지수',   valStr: fg?.cur  != null ? String(Math.round(fg.cur))       : 'N/A', lv: lv.fg   || 'unknown', badgeLbl: fg?.cur != null ? fgLabel(Math.round(fg.cur)) : null },
+    { name: 'VIX 변동성지수', valStr: vix?.cur != null ? vix.cur.toFixed(2)               : 'N/A', lv: lv.vix  || 'unknown' },
+    { name: '10년물 금리',    valStr: tnx?.cur != null
+        ? tnx.cur.toFixed(2) + '%' + (tnxChg != null ? ` (${tnxChg >= 0 ? '+' : ''}${tnxChg.toFixed(3)}%p)` : '')
         : 'N/A',
       lv: lv.tnx || 'unknown'
-    }
+    },
+    { name: 'HY 스프레드',   valStr: hy       != null ? Math.round(hy * 100) + ' bp'      : 'N/A', lv: lv.hy   || 'unknown' },
+    { name: 'MOVE 지수',     valStr: move?.cur != null ? move.cur.toFixed(1)               : 'N/A', lv: lv.move || 'unknown' },
+    { name: 'WTI 유가',      valStr: wti?.cur  != null ? '$' + wti.cur.toFixed(2)          : 'N/A', lv: lv.wti  || 'unknown' },
   ];
-  $('cl-body').innerHTML = clRows.map(({ name, valStr, lv: l }) => {
+  $('cl-body').innerHTML = clRows.map(({ name, valStr, lv: l, badgeLbl }) => {
     const m = LVMETA[l];
     return `<tr>
       <td>${name}</td>
       <td class="td-val">${valStr}</td>
-      <td class="td-bdg"><span class="metric-badge badge-${m.cls}">${m.emoji} ${m.lbl}</span></td>
+      <td class="td-bdg"><span class="metric-badge badge-${m.cls}">${m.emoji} ${badgeLbl || m.lbl}</span></td>
     </tr>`;
   }).join('');
 
