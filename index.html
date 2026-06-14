@@ -17,6 +17,7 @@
       --muted:      #8892b0;
 
       --safe:       #4caf50;  --safe-bg:    #0d2610;
+      --greed:      #8bc34a;  --greed-bg:   #1a2a08;
       --normal:     #ffc107;  --normal-bg:  #2d2000;
       --caution:    #ff9800;  --caution-bg: #2d1500;
       --danger:     #f44336;  --danger-bg:  #2d0a0a;
@@ -105,6 +106,7 @@
       padding: 12px 12px 10px;
     }
     .metric-card.card-safe    { border-left-color: var(--safe);    }
+    .metric-card.card-greed   { border-left-color: var(--greed);   }
     .metric-card.card-normal  { border-left-color: var(--normal);  }
     .metric-card.card-caution { border-left-color: var(--caution); }
     .metric-card.card-danger  { border-left-color: var(--danger);  }
@@ -146,6 +148,7 @@
       letter-spacing: 0.3px;
     }
     .badge-safe    { background: var(--safe-bg);    color: var(--safe);    }
+    .badge-greed   { background: var(--greed-bg);   color: var(--greed);   }
     .badge-normal  { background: var(--normal-bg);  color: var(--normal);  }
     .badge-caution { background: var(--caution-bg); color: var(--caution); }
     .badge-danger  { background: var(--danger-bg);  color: var(--danger);  }
@@ -349,6 +352,7 @@ const CFG = {
 
 const LVMETA = {
   safe:    { lbl: '안정', emoji: '✅', cls: 'safe'    },
+  greed:   { lbl: 'Greed',        emoji: '📈', cls: 'greed'   },
   normal:  { lbl: '보통', emoji: '⚠️', cls: 'normal'  },
   caution: { lbl: '불안', emoji: '🚨', cls: 'caution' },
   danger:  { lbl: '위험', emoji: '💀', cls: 'danger'  },
@@ -610,9 +614,9 @@ function fredLatestTwo(json) {
 // ── RISK ENGINE ───────────────────────────────────────────────────────────────
 function fgLabel(val) {
   if (val <= 25) return 'Extreme Fear';
-  if (val <= 48) return 'Fear';
-  if (val <= 52) return 'Neutral';
-  if (val <= 75) return 'Greed';
+  if (val <= 49) return 'Fear';
+  if (val === 50) return 'Neutral';
+  if (val <= 74) return 'Greed';
   return 'Extreme Greed';
 }
 
@@ -621,11 +625,11 @@ function riskLevel(metric, val) {
   const T = CFG.THR;
 
   if (metric === 'fg') {
-    const { safeL, safeH, normL, normH } = T.fg;
-    if (val >= safeL && val <= safeH) return 'safe';
-    if (val >= normL && val <= normH) return 'normal';
-    if (val >= 10   && val <= 90)    return 'caution';
-    return 'danger';
+    if (val <= 25) return 'danger';   // Extreme Fear
+    if (val <= 49) return 'caution';  // Fear
+    if (val === 50) return 'normal';  // Neutral
+    if (val <= 74) return 'greed';    // Greed (연두)
+    return 'safe';                    // Extreme Greed
   }
   const thr = T[metric];
   if (!thr) return 'normal';
@@ -639,7 +643,7 @@ function riskLevel(metric, val) {
 function overallRisk(lvMap) {
   const vals = Object.values(lvMap).filter(l => l !== 'unknown');
   const cnt = { safe: 0, normal: 0, caution: 0, danger: 0 };
-  vals.forEach(l => { if (cnt[l] !== undefined) cnt[l]++; });
+  vals.forEach(l => { const k = l === 'greed' ? 'safe' : l; if (cnt[k] !== undefined) cnt[k]++; });
 
   let overall;
   if      (cnt.danger >= 2 || (cnt.danger >= 1 && cnt.caution >= 2)) overall = 'danger';
