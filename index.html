@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>StocRisk Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:         #0f1117;
+      --card-bg:    #1a1d26;
+      --border:     #2a2d3e;
+      --text:       #e8eaf6;
+      --muted:      #8892b0;
+
+      --safe:       #4caf50;  --safe-bg:    #0d2610;
+      --normal:     #ffc107;  --normal-bg:  #2d2000;
+      --caution:    #ff9800;  --caution-bg: #2d1500;
+      --danger:     #f44336;  --danger-bg:  #2d0a0a;
+
+      --sp500:  #2196f3;
+      --ndx:    #ce93d8;
+      --soxx:   #4dd0e1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+      font-size: 14px;
+      max-width: 500px;
+      margin: 0 auto;
+      padding-bottom: 24px;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    header h1 { font-size: 15px; font-weight: 800; letter-spacing: -0.4px; }
+    #last-updated { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    #refresh-btn {
+      background: var(--border);
+      border: none;
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #refresh-btn:disabled { opacity: 0.5; }
+    #refresh-btn.spinning { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Risk Banner ─────────────────────────────────── */
+    #risk-banner {
+      padding: 14px 16px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.4s;
+    }
+    #banner-level { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    #banner-detail { font-size: 11px; margin-top: 4px; opacity: 0.85; }
+
+    .bg-safe    { background: var(--safe-bg);    }
+    .bg-normal  { background: var(--normal-bg);  }
+    .bg-caution { background: var(--caution-bg); }
+    .bg-danger  { background: var(--danger-bg);  }
+    .bg-unknown { background: var(--card-bg);    }
+
+    .fc-safe    { color: var(--safe);    }
+    .fc-normal  { color: var(--normal);  }
+    .fc-caution { color: var(--caution); }
+    .fc-danger  { color: var(--danger);  }
+    .fc-unknown { color: var(--muted);   }
+
+    /* ── Metric Grid ─────────────────────────────────── */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 10px 10px 4px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-left-width: 3px;
+      border-radius: 12px;
+      padding: 12px 12px 10px;
+    }
+    .metric-card.card-safe    { border-left-color: var(--safe);    }
+    .metric-card.card-normal  { border-left-color: var(--normal);  }
+    .metric-card.card-caution { border-left-color: var(--caution); }
+    .metric-card.card-danger  { border-left-color: var(--danger);  }
+    .metric-card.card-unknown { border-left-color: var(--border);  }
+
+    .metric-name {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .metric-value {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric-change {
+      font-size: 11px;
+      margin-top: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .chg-up   { color: #ef5350; }  /* 상승 = 위험방향 (VIX·금리·MOVE 등) */
+    .chg-down { color: #66bb6a; }  /* 하락 = 안전방향 */
+    .chg-pup  { color: #66bb6a; }  /* 가격 상승 = 좋음 (WTI) */
+    .chg-pdn  { color: #ef5350; }  /* 가격 하락 = 나쁨 (WTI) */
+    .chg-neu  { color: var(--muted); }
+
+    .metric-badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      margin-top: 7px;
+      letter-spacing: 0.3px;
+    }
+    .badge-safe    { background: var(--safe-bg);    color: var(--safe);    }
+    .badge-normal  { background: var(--normal-bg);  color: var(--normal);  }
+    .badge-caution { background: var(--caution-bg); color: var(--caution); }
+    .badge-danger  { background: var(--danger-bg);  color: var(--danger);  }
+    .badge-unknown { background: var(--border);     color: var(--muted);   }
+
+    /* ── Chart ────────────────────────────────────────── */
+    .chart-section {
+      margin: 4px 10px 4px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .section-title {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 10px;
+    }
+    #market-chart { width: 100% !important; }
+    .chart-legend {
+      display: flex;
+      gap: 14px;
+      margin-top: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .leg-sp500 { color: var(--sp500); }
+    .leg-ndx   { color: var(--ndx);   }
+    .leg-soxx  { color: var(--soxx);  }
+
+    /* ── Checklist ────────────────────────────────────── */
+    .checklist-section {
+      margin: 4px 10px 0;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .checklist-section .section-title { margin-bottom: 10px; }
+
+    #checklist-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    #checklist-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 10px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--border);
+    }
+    #checklist-table td { padding: 8px 2px; border-bottom: 1px solid var(--border); }
+    #checklist-table tr:last-child td { border-bottom: none; }
+    .td-val  { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .td-bdg  { text-align: right; padding-left: 4px !important; }
+
+    #verdict {
+      margin-top: 12px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: -0.2px;
+    }
+
+    /* ── Misc ─────────────────────────────────────────── */
+    .na-note { font-size: 9px; color: var(--muted); margin-top: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div>
+    <h1>📊 StocRisk Dashboard (By TED)</h1>
+    <div id="last-updated">불러오는 중...</div>
+  </div>
+  <button id="refresh-btn" onclick="manualRefresh()">🔄</button>
+</header>
+
+<!-- Risk Banner -->
+<div id="risk-banner" class="bg-unknown">
+  <div id="banner-date" style="font-size:11px;opacity:0.65;margin-bottom:3px;letter-spacing:0.2px;"></div>
+  <div id="banner-level" class="fc-unknown">⏳ 분석 중...</div>
+  <div id="banner-detail"></div>
+</div>
+
+<!-- Metric Grid -->
+<div class="metric-grid">
+
+  <div class="metric-card card-unknown" id="card-fg">
+    <div class="metric-name">공포탐욕지수</div>
+    <div class="metric-value" id="val-fg">—</div>
+    <div class="metric-change chg-neu" id="chg-fg">&nbsp;</div>
+    <span class="metric-badge badge-unknown" id="bdg-fg">조회중</span>
+  </div>
+
+  <div class="metric-card card-unknown" id="card-vix">
+    <div class="metric-name">VIX 변동성지수</div>
+    <div class="metric-value" id="val-vix">—</div>
+    <div class="metric-change chg-neu" id="chg-vix">&nbsp;</div>
+    <span class="metric-badge badge-unknown" id="bdg-vix">조회중</span>
+  </div>
+
+  <div class="metric-card card-unknown" id="card-tnx">
+    <div class="metric-name">10년물 금리</div>
+    <div class="metric-value" id="val-tnx">—</div>
+    <div class="metric-change chg-neu" id="chg-tnx">&nbsp;</div>
+    <span class="metric-badge badge-unknown" id="bdg-tnx">조회중</span>
+  </div>
+
+  <div class="metric-card card-unknown" id="card-hy">
+    <div class="metric-name">HY 스프레드</div>
+    <div class="metric-value" id="val-hy">—</div>
+    <div class="metric-change chg-neu" id="chg-hy">FRED 최신치</div>
+    <span class="metric-badge badge-unknown" id="bdg-hy">조회중</span>
+  </div>
+
+  <div class="metric-card card-unknown" id="card-move">
+    <div class="metric-name">MOVE 지수</div>
+    <div class="metric-value" id="val-move">—</div>
+    <div class="metric-change chg-neu" id="chg-move">&nbsp;</div>
+    <span class="metric-badge badge-unknown" id="bdg-move">조회중</span>
+  </div>
+
+  <div class="metric-card card-unknown" id="card-wti">
+    <div class="metric-name">WTI 유가</div>
+    <div class="metric-value" id="val-wti">—</div>
+    <div class="metric-change chg-neu" id="chg-wti">&nbsp;</div>
+    <span class="metric-badge badge-unknown" id="bdg-wti">조회중</span>
+  </div>
+
+</div>
+
+<!-- Chart -->
+<div class="chart-section">
+  <div class="section-title">S&amp;P500 · 나스닥100 · SOXX — 최근 3개월 수익률(%)</div>
+  <canvas id="market-chart" height="180"></canvas>
+  <div class="chart-legend">
+    <span class="leg-sp500">■ S&amp;P500</span>
+    <span class="leg-ndx">■ 나스닥100</span>
+    <span class="leg-soxx">■ SOXX</span>
+  </div>
+</div>
+
+<!-- Checklist -->
+<div class="checklist-section">
+  <div class="section-title">📋 리스크 체크리스트</div>
+  <table id="checklist-table">
+    <thead>
+      <tr>
+        <th>지표</th>
+        <th style="text-align:right">현재값</th>
+        <th style="text-align:right">등급</th>
+      </tr>
+    </thead>
+    <tbody id="cl-body">
+      <tr><td colspan="3" style="color:var(--muted);text-align:center;padding:12px">로딩 중...</td></tr>
+    </tbody>
+  </table>
+  <div id="verdict" class="bg-unknown fc-unknown">종합 판단 분석 중...</div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const CFG = {
+  FRED_KEY:   'd442daf53a73ea7d562fd671a96674b0',
+  FRED_BASE:  'https://api.stlouisfed.org/fred/series/observations',
+  PROXY:      'https://api.allorigins.win/raw?url=',
+  PROXY2:     'https://corsproxy.io/?',
+  CNN_URL:    'https://production.dataviz.cnn.io/index/fearandgreed/graphdata',
+  CACHE_KEY:  'stocRisk_v7',
+  CACHE_TTL:  30 * 60 * 1000,
+  TIMEOUT:    12000,
+
+  SYM: {
+    vix:   '^VIX',
+    wti:   'CL.F',
+    move:  '^MOVE',
+    sp500: '^SPX',
+    ndx:   '^NDX',
+    soxx:  'SOXX.US'
+  },
+
+  // 임계값 — 필요 시 여기서 수정
+  THR: {
+    fg:      { safeL: 40, safeH: 60, normL: 25, normH: 75 },
+    vix:     { safe: 15, normal: 20, caution: 30 },
+    tnxChg:  { safe: 0.05, normal: 0.10, caution: 0.20 }, // %p 일간 변화
+    hy:      { safe: 3.0, normal: 4.0, caution: 6.0 },    // FRED % (×100 = bp)
+    move:    { safe: 80,  normal: 110, caution: 150 },
+    wtiChg:  { safe: 2,   normal: 5,   caution: 10 }       // % 변화율
+  }
+};
+
+const LVMETA = {
+  safe:    { lbl: '안정', emoji: '✅', cls: 'safe'    },
+  normal:  { lbl: '보통', emoji: '⚠️', cls: 'normal'  },
+  caution: { lbl: '불안', emoji: '🚨', cls: 'caution' },
+  danger:  { lbl: '위험', emoji: '💀', cls: 'danger'  },
+  unknown: { lbl: '—',   emoji: '—',  cls: 'unknown' }
+};
+
+const VERDICT = {
+  safe:    '✅ 역발상 투자: 시장 안정 — 진입 타이밍 아님',
+  normal:  '⚠️ 역발상 투자: 관망 — 소폭 조정 가능',
+  caution: '🚨 역발상 투자: 준비 구간 — 분할 매수 준비',
+  danger:  '💀 역발상 투자: 극도 공포 — 적극 분할 매수 검토'
+};
+
+// ── CACHE ─────────────────────────────────────────────────────────────────────
+const Cache = {
+  set(data) {
+    try { sessionStorage.setItem(CFG.CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch(_) {}
+  },
+  get() {
+    try {
+      const raw = sessionStorage.getItem(CFG.CACHE_KEY);
+      if (!raw) return null;
+      const { data, ts } = JSON.parse(raw);
+      return (Date.now() - ts < CFG.CACHE_TTL) ? data : null;
+    } catch(_) { return null; }
+  },
+  clear() {
+    try { sessionStorage.removeItem(CFG.CACHE_KEY); } catch(_) {}
+  }
+};
+
+// ── FETCH HELPERS ─────────────────────────────────────────────────────────────
+async function rawFetch(url) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), CFG.TIMEOUT);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res;
+  } finally { clearTimeout(tid); }
+}
+async function fetchJSON(url) { return (await rawFetch(url)).json(); }
+async function fetchText(url) { return (await rawFetch(url)).text(); }
+
+async function fetchWithFallbacks(url) {
+  for (const u of [`${CFG.PROXY2}${encodeURIComponent(url)}`, `${CFG.PROXY}${encodeURIComponent(url)}`, url]) {
+    try { return await fetchJSON(u); } catch(_) {}
+  }
+  throw new Error('all proxies failed');
+}
+
+// stooq.com CSV 파서 — Yahoo Finance 대체 (CORS 우회 불필요)
+function parseStooqCSV(csv, forChart) {
+  const lines = csv.trim().split('\n').slice(1).filter(r => r.trim() && r.includes(','));
+  if (!lines.length) throw new Error('empty stooq');
+  if (forChart) {
+    const sorted = lines.slice().sort((a, b) => a.split(',')[0] > b.split(',')[0] ? 1 : -1);
+    const dates = [], prices = [];
+    sorted.forEach(r => {
+      const c = r.split(','), p = parseFloat(c[4]);
+      if (!isNaN(p)) { dates.push(c[0].slice(5).replace('-', '/')); prices.push(p); }
+    });
+    return { dates, prices };
+  } else {
+    const sorted = lines.slice().sort((a, b) => b.split(',')[0] > a.split(',')[0] ? 1 : -1);
+    const cl = r => parseFloat(r.split(',')[4]);
+    if (isNaN(cl(sorted[0]))) throw new Error('bad price');
+    return { cur: cl(sorted[0]), prev: sorted.length > 1 ? cl(sorted[1]) : null };
+  }
+}
+
+// ── FALLBACK: Yahoo Finance · Naver Finance ──────────────────────────────────
+// stooq 심볼 → Yahoo Finance 심볼 매핑
+const YF_SYM = { '^vix':'^VIX','cl.f':'CL=F','^move':'^MOVE','^spx':'^GSPC','^ndx':'^NDX','soxx.us':'SOXX' };
+// Naver Finance 세계지수 코드 (m.stock.naver.com/api/index/{code}/basic)
+const NAVER_IDX = { '^spx':'SPI', '^ndx':'NAS', '^vix':'VIX' };
+
+async function yfV7Fetch(sym) {
+  const yfSym = YF_SYM[sym.toLowerCase()] || sym;
+  // 1차: v7 quote
+  for (const base of [
+    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(yfSym)}`,
+    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(yfSym)}`
+  ]) {
+    for (const u of [base, `${CFG.PROXY2}${encodeURIComponent(base)}`, `${CFG.PROXY}${encodeURIComponent(base)}`]) {
+      try {
+        const d = await fetchJSON(u);
+        const r = d?.quoteResponse?.result?.[0];
+        if (r?.regularMarketPrice) return { cur: r.regularMarketPrice, prev: r.regularMarketPreviousClose ?? null };
+      } catch(_) {}
+    }
+  }
+  // 2차: v8 chart meta (차트 API가 quote보다 열려 있음)
+  for (const base of [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSym)}?interval=1d&range=5d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSym)}?interval=1d&range=5d`
+  ]) {
+    for (const u of [base, `${CFG.PROXY2}${encodeURIComponent(base)}`, `${CFG.PROXY}${encodeURIComponent(base)}`]) {
+      try {
+        const d = await fetchJSON(u);
+        const m = d?.chart?.result?.[0]?.meta;
+        if (m?.regularMarketPrice) return { cur: m.regularMarketPrice, prev: m.previousClose ?? m.chartPreviousClose ?? null };
+      } catch(_) {}
+    }
+  }
+  throw new Error(`YF all failed: ${sym}`);
+}
+
+async function naverFetch(sym) {
+  const code = NAVER_IDX[sym.toLowerCase()];
+  if (!code) throw new Error('no naver code');
+  const url = `https://m.stock.naver.com/api/index/${code}/basic`;
+  for (const u of [url, `${CFG.PROXY}${encodeURIComponent(url)}`]) {
+    try {
+      const d = await fetchJSON(u);
+      const cur = parseFloat(String(d.closePrice || d.currentValue || '').replace(/,/g, ''));
+      if (!isNaN(cur)) {
+        const chg = parseFloat(String(d.compareToPreviousClosePrice || '').replace(/,/g, ''));
+        return { cur, prev: isNaN(chg) ? null : +(cur - chg).toFixed(4) };
+      }
+    } catch(_) {}
+  }
+  throw new Error(`naver ${code}`);
+}
+
+async function yfChartFetch(sym) {
+  const yfSym = YF_SYM[sym.toLowerCase()] || sym;
+  for (const base of [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSym)}?interval=1d&range=3mo`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yfSym)}?interval=1d&range=3mo`
+  ]) {
+    for (const u of [base, `${CFG.PROXY2}${encodeURIComponent(base)}`, `${CFG.PROXY}${encodeURIComponent(base)}`]) {
+      try { return yChart(await fetchJSON(u)); } catch(_) {}
+    }
+  }
+  throw new Error(`YF chart ${sym}`);
+}
+
+async function cboeFetch() {
+  const url = 'https://cdn.cboe.com/api/global/delayed_quotes/quotes/%5EVIX.json';
+  for (const u of [url, `${CFG.PROXY2}${encodeURIComponent(url)}`, `${CFG.PROXY}${encodeURIComponent(url)}`]) {
+    try {
+      const d = await fetchJSON(u);
+      const obj = d?.data ?? d;
+      const cur  = parseFloat(String(obj?.close ?? obj?.last ?? obj?.lastSalePrice ?? obj?.price ?? 'NaN'));
+      const prev = parseFloat(String(obj?.prev_close ?? obj?.previousClose ?? obj?.prevClose ?? 'NaN'));
+      if (!isNaN(cur)) return { cur, prev: isNaN(prev) ? null : prev };
+    } catch(_) {}
+  }
+  throw new Error('cboe failed');
+}
+
+async function vixFetch() {
+  try { return await yfV7Fetch('^VIX'); } catch(_) {}
+  try { return await cboeFetch(); } catch(_) {}
+  throw new Error('VIX all failed');
+}
+
+async function treasuryTnxFetch() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
+  const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value_month=${ym}`;
+  let xml;
+  for (const u of [url, `${CFG.PROXY}${encodeURIComponent(url)}`]) {
+    try { xml = await fetchText(u); if (xml && xml.includes('BC_10YEAR')) break; xml = null; } catch(_) {}
+  }
+  if (!xml) throw new Error('treasury fetch failed');
+  const ms = [...xml.matchAll(/<d:BC_10YEAR[^>]*>([\d.]+)<\/d:BC_10YEAR>/g)];
+  if (!ms.length) throw new Error('no 10yr data');
+  return { cur: parseFloat(ms[ms.length-1][1]), prev: ms.length > 1 ? parseFloat(ms[ms.length-2][1]) : null };
+}
+
+async function tnxFetch() {
+  try { return fredLatestTwo(await fredFetch('DGS10', 2)); } catch(_) {}
+  try { return await treasuryTnxFetch(); } catch(_) {}
+  throw new Error('all TNX sources failed');
+}
+
+async function stooqFetch(sym, daysBack = 8) {
+  const now = new Date(), start = new Date(+now - daysBack * 86400000);
+  const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '');
+  const base = `https://stooq.com/q/d/l/?s=${sym}&d1=${fmt(start)}&d2=${fmt(now)}&i=d`;
+  for (const u of [`${CFG.PROXY2}${encodeURIComponent(base)}`, `${CFG.PROXY}${encodeURIComponent(base)}`, base]) {
+    try { return parseStooqCSV(await fetchText(u), false); } catch(_) {}
+  }
+  try { return await yfV7Fetch(sym); } catch(_) {}
+  if (sym.toUpperCase() === '^VIX') { try { return await cboeFetch(); } catch(_) {} }
+  try { return await naverFetch(sym); } catch(_) {}
+  throw new Error(`all sources failed: ${sym}`);
+}
+
+async function stooqChartFetch(sym, months = 3) {
+  const now = new Date(), start = new Date(+now - months * 31 * 86400000);
+  const fmt = d => d.toISOString().slice(0, 10).replace(/-/g, '');
+  const base = `https://stooq.com/q/d/l/?s=${sym}&d1=${fmt(start)}&d2=${fmt(now)}&i=d`;
+  for (const u of [`${CFG.PROXY2}${encodeURIComponent(base)}`, `${CFG.PROXY}${encodeURIComponent(base)}`, base]) {
+    try { return parseStooqCSV(await fetchText(u), true); } catch(_) {}
+  }
+  try { return await yfChartFetch(sym); } catch(_) {}
+  throw new Error(`all chart sources failed: ${sym}`);
+}
+
+async function fredFetch(series, limit = 5) {
+  const url = `${CFG.FRED_BASE}?series_id=${series}&api_key=${CFG.FRED_KEY}&sort_order=desc&limit=${limit}&file_type=json`;
+  const tryFred = async u => { const d = await fetchJSON(u); if (d.error_message) throw new Error(d.error_message); return d; };
+  for (const u of [url, `${CFG.PROXY}${encodeURIComponent(url)}`, `${CFG.PROXY2}${encodeURIComponent(url)}`]) {
+    try { return await tryFred(u); } catch(e) { console.warn('FRED', series, e.message); }
+  }
+  throw new Error(`FRED ${series}`);
+}
+
+// ── DATA PARSERS ──────────────────────────────────────────────────────────────
+function yMeta(json) {
+  const r = json?.chart?.result?.[0];
+  if (!r) throw new Error('empty');
+  const m = r.meta;
+  return {
+    cur:  m.regularMarketPrice ?? m.chartPreviousClose,
+    prev: m.previousClose ?? m.chartPreviousClose
+  };
+}
+
+function yChart(json) {
+  const r = json?.chart?.result?.[0];
+  if (!r) return { dates: [], prices: [] };
+  const ts  = r.timestamp || [];
+  const cls = r.indicators?.quote?.[0]?.close || [];
+  const dates = [], prices = [];
+  ts.forEach((t, i) => {
+    if (cls[i] != null) {
+      dates.push(new Date(t * 1000).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }));
+      prices.push(cls[i]);
+    }
+  });
+  return { dates, prices };
+}
+
+function fredLatest(json) {
+  const obs = json?.observations;
+  if (!obs) throw new Error('no obs');
+  for (const o of obs) {
+    if (o.value !== '.' && o.value !== '') return parseFloat(o.value);
+  }
+  throw new Error('no value');
+}
+
+// 최신 2개 값 반환 — DGS10(10년물) 등 변화량이 필요한 시리즈용
+function fredLatestTwo(json) {
+  const obs = json?.observations;
+  if (!obs) throw new Error('no obs');
+  const valid = obs.filter(o => o.value !== '.' && o.value !== '');
+  if (!valid.length) throw new Error('no value');
+  return {
+    cur:  parseFloat(valid[0].value),
+    prev: valid.length > 1 ? parseFloat(valid[1].value) : null
+  };
+}
+
+// ── RISK ENGINE ───────────────────────────────────────────────────────────────
+function fgLabel(val) {
+  if (val <= 25) return 'Extreme Fear';
+  if (val <= 48) return 'Fear';
+  if (val <= 52) return 'Neutral';
+  if (val <= 75) return 'Greed';
+  return 'Extreme Greed';
+}
+
+function riskLevel(metric, val) {
+  if (val == null || isNaN(val)) return 'unknown';
+  const T = CFG.THR;
+
+  if (metric === 'fg') {
+    const { safeL, safeH, normL, normH } = T.fg;
+    if (val >= safeL && val <= safeH) return 'safe';
+    if (val >= normL && val <= normH) return 'normal';
+    if (val >= 10   && val <= 90)    return 'caution';
+    return 'danger';
+  }
+  const thr = T[metric];
+  if (!thr) return 'normal';
+  const abs = Math.abs(val);
+  if (abs < thr.safe)   return 'safe';
+  if (abs < thr.normal) return 'normal';
+  if (abs < thr.caution) return 'caution';
+  return 'danger';
+}
+
+function overallRisk(lvMap) {
+  const vals = Object.values(lvMap).filter(l => l !== 'unknown');
+  const cnt = { safe: 0, normal: 0, caution: 0, danger: 0 };
+  vals.forEach(l => { if (cnt[l] !== undefined) cnt[l]++; });
+
+  let overall;
+  if      (cnt.danger >= 2 || (cnt.danger >= 1 && cnt.caution >= 2)) overall = 'danger';
+  else if (cnt.danger >= 1 || cnt.caution >= 2)                      overall = 'caution';
+  else if (cnt.caution >= 1 || cnt.normal >= 3)                      overall = 'normal';
+  else                                                                 overall = 'safe';
+  return { overall, cnt };
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
+
+function applyLevel(cardId, level) {
+  const m = LVMETA[level] || LVMETA.unknown;
+  $(`card-${cardId}`).className = `metric-card card-${m.cls}`;
+  const bdg = $(`bdg-${cardId}`);
+  bdg.className = `metric-badge badge-${m.cls}`;
+  bdg.textContent = `${m.emoji} ${m.lbl}`;
+}
+
+function setCard(cardId, valTxt, chgTxt, chgCls, level) {
+  $(`val-${cardId}`).textContent   = valTxt ?? 'N/A';
+  const chgEl = $(`chg-${cardId}`);
+  chgEl.textContent  = chgTxt || ' ';
+  chgEl.className    = `metric-change ${chgCls || 'chg-neu'}`;
+  applyLevel(cardId, level);
+}
+
+function fmtChg(chg, isRisk = true) {
+  if (chg == null || isNaN(chg)) return ['', 'chg-neu'];
+  const dir  = chg >= 0 ? '▲' : '▼';
+  const cls  = isRisk
+    ? (chg >= 0 ? 'chg-up' : 'chg-down')    // 위험지표: 상승=빨강
+    : (chg >= 0 ? 'chg-pup' : 'chg-pdn');   // 가격지표: 상승=초록
+  return [`${dir} ${Math.abs(chg)}`, cls];
+}
+
+// ── CHART ENGINE ──────────────────────────────────────────────────────────────
+let _chart = null;
+
+function normPct(prices) {
+  if (!prices.length) return [];
+  const b = prices[0];
+  return prices.map(p => p != null ? +((p - b) / b * 100).toFixed(2) : null);
+}
+
+function renderChart(sp5, ndx, soxx) {
+  const labels = [sp5, ndx, soxx].reduce((a, d) => d.dates.length > a.length ? d.dates : a, []);
+  const ds = [
+    { label: 'S&P500',   data: normPct(sp5.prices),  borderColor: '#2196f3', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3, spanGaps: true },
+    { label: '나스닥100', data: normPct(ndx.prices),  borderColor: '#ce93d8', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3, spanGaps: true },
+    { label: 'SOXX',     data: normPct(soxx.prices), borderColor: '#4dd0e1', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3, spanGaps: true }
+  ];
+  const opts = {
+    responsive: true,
+    animation: { duration: 500 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1d26',
+        titleColor: '#8892b0',
+        bodyColor: '#e8eaf6',
+        borderColor: '#2a2d3e',
+        borderWidth: 1,
+        callbacks: {
+          label: c => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(2)}%`
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#8892b0', maxTicksLimit: 5, font: { size: 10 } },
+        grid:  { color: '#2a2d3e' }
+      },
+      y: {
+        ticks: { color: '#8892b0', font: { size: 10 }, callback: v => `${v >= 0 ? '+' : ''}${v}%` },
+        grid:  { color: '#2a2d3e' }
+      }
+    }
+  };
+
+  if (_chart) {
+    _chart.data.labels   = labels;
+    _chart.data.datasets = ds;
+    _chart.update();
+  } else {
+    _chart = new Chart($('market-chart').getContext('2d'), { type: 'line', data: { labels, datasets: ds }, options: opts });
+  }
+}
+
+// ── RENDER ALL ────────────────────────────────────────────────────────────────
+function renderAll(d) {
+  const lv = {};
+
+  // 공포탐욕지수
+  const fg = d.fg;
+  if (fg?.cur != null) {
+    const val = Math.round(fg.cur);
+    const chg = fg.prev != null ? Math.round(fg.cur) - Math.round(fg.prev) : null;
+    lv.fg = riskLevel('fg', val);
+    const [chgTxt, chgCls] = fmtChg(chg, true);
+    const label = fgLabel(val);
+    const sub = [label, chgTxt ? chgTxt + ' (전일비)' : ''].filter(Boolean).join(' · ');
+    setCard('fg', String(val), sub, chgCls, lv.fg);
+    $('bdg-fg').textContent = `${LVMETA[lv.fg]?.emoji || '⚠️'} ${label}`;
+  } else { setCard('fg', 'N/A', '', 'chg-neu', 'unknown'); }
+
+  // VIX
+  const vix = d.vix;
+  if (vix?.cur != null) {
+    const val  = +vix.cur.toFixed(2);
+    const chg  = vix.prev != null ? +(val - vix.prev).toFixed(2) : null;
+    lv.vix = riskLevel('vix', val);
+    const [chgTxt, chgCls] = fmtChg(chg, true);
+    setCard('vix', String(val), chgTxt, chgCls, lv.vix);
+  } else { setCard('vix', 'N/A', '', 'chg-neu', 'unknown'); }
+
+  // 10년물 금리
+  const tnx = d.tnx;
+  if (tnx?.cur != null) {
+    const val  = +tnx.cur.toFixed(3);
+    const chg  = tnx.prev != null ? +(val - tnx.prev).toFixed(3) : null;
+    lv.tnx = riskLevel('tnxChg', chg ?? 0);
+    const dir    = chg == null ? '' : chg >= 0 ? '▲' : '▼';
+    const chgTxt = chg != null ? `${dir} ${Math.abs(chg).toFixed(3)}%p` : '';
+    const chgCls = chg == null ? 'chg-neu' : chg >= 0 ? 'chg-up' : 'chg-down';
+    setCard('tnx', val.toFixed(2) + '%', chgTxt, chgCls, lv.tnx);
+  } else { setCard('tnx', 'N/A', '', 'chg-neu', 'unknown'); }
+
+  // HY Spread (FRED %, 표시는 bp)
+  const hy = d.hy;
+  if (hy != null) {
+    const bp = Math.round(hy * 100);
+    lv.hy = riskLevel('hy', hy);
+    setCard('hy', bp + ' bp', 'FRED 최신치', 'chg-neu', lv.hy);
+  } else { setCard('hy', 'N/A', 'FRED 키 미인증 — fred.stlouisfed.org', 'chg-neu', 'unknown'); }
+
+  // MOVE 지수
+  const move = d.move;
+  if (move?.cur != null) {
+    const val = +move.cur.toFixed(1);
+    const chg = move.prev != null ? +(val - move.prev).toFixed(1) : null;
+    lv.move = riskLevel('move', val);
+    const [chgTxt, chgCls] = fmtChg(chg, true);
+    setCard('move', String(val), chgTxt, chgCls, lv.move);
+  } else { setCard('move', 'N/A', '', 'chg-neu', 'unknown'); }
+
+  // WTI
+  const wti = d.wti;
+  if (wti?.cur != null) {
+    const val    = +wti.cur.toFixed(2);
+    const chgPct = wti.prev != null ? +((val - wti.prev) / wti.prev * 100).toFixed(2) : null;
+    lv.wti = riskLevel('wtiChg', chgPct ?? 0);
+    const dir    = chgPct == null ? '' : chgPct >= 0 ? '▲' : '▼';
+    const chgTxt = chgPct != null ? `${dir} ${Math.abs(chgPct).toFixed(2)}%` : '';
+    const chgCls = chgPct == null ? 'chg-neu' : chgPct >= 0 ? 'chg-pup' : 'chg-pdn';
+    setCard('wti', '$' + val.toFixed(2), chgTxt, chgCls, lv.wti);
+  } else { setCard('wti', 'N/A', '', 'chg-neu', 'unknown'); }
+
+  // 종합 등급
+  const { overall, cnt } = overallRisk(lv);
+  const bm = LVMETA[overall];
+  $('risk-banner').className = `bg-${bm.cls}`;
+  $('banner-level').className = `fc-${bm.cls}`;
+  $('banner-level').textContent = `${bm.emoji} 현재 시장: ${bm.lbl}`;
+  const parts = [];
+  if (cnt.danger  > 0) parts.push(`위험 ${cnt.danger}개`);
+  if (cnt.caution > 0) parts.push(`불안 ${cnt.caution}개`);
+  if (cnt.normal  > 0) parts.push(`보통 ${cnt.normal}개`);
+  $('banner-detail').textContent = parts.length ? parts.join(' · ') : '모든 지표 안정 구간';
+
+  // 체크리스트 행
+  const clRows = [
+    { name: '공포탐욕지수',    valStr: fg?.cur  != null ? `${Math.round(fg.cur)} (${fgLabel(Math.round(fg.cur))})` : 'N/A', lv: lv.fg    || 'unknown' },
+    { name: 'VIX 변동성지수',  valStr: vix?.cur != null ? vix.cur.toFixed(2)            : 'N/A', lv: lv.vix   || 'unknown' },
+    { name: 'HY 스프레드',     valStr: hy       != null ? Math.round(hy * 100) + ' bp'  : 'N/A', lv: lv.hy    || 'unknown' },
+    { name: 'MOVE 지수',       valStr: move?.cur != null ? move.cur.toFixed(1)           : 'N/A', lv: lv.move  || 'unknown' },
+    { name: '10년물 금리 변화', valStr: (tnx?.cur != null && tnx?.prev != null)
+        ? ((tnx.cur - tnx.prev) >= 0 ? '+' : '') + (tnx.cur - tnx.prev).toFixed(3) + '%p'
+        : 'N/A',
+      lv: lv.tnx || 'unknown'
+    }
+  ];
+  $('cl-body').innerHTML = clRows.map(({ name, valStr, lv: l }) => {
+    const m = LVMETA[l];
+    return `<tr>
+      <td>${name}</td>
+      <td class="td-val">${valStr}</td>
+      <td class="td-bdg"><span class="metric-badge badge-${m.cls}">${m.emoji} ${m.lbl}</span></td>
+    </tr>`;
+  }).join('');
+
+  // 종합 판단
+  const vrdEl = $('verdict');
+  vrdEl.className = `bg-${bm.cls} fc-${bm.cls}`;
+  vrdEl.style.cssText = 'margin-top:12px;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:700;text-align:center;letter-spacing:-0.2px;';
+  vrdEl.textContent = VERDICT[overall] || bm.lbl;
+
+  // 차트
+  if (d.charts) {
+    const { sp5, ndx, soxx } = d.charts;
+    if (sp5.prices.length || ndx.prices.length || soxx.prices.length) {
+      renderChart(sp5, ndx, soxx);
+    }
+  }
+}
+
+// ── LOAD ALL DATA ─────────────────────────────────────────────────────────────
+async function loadAllData(force = false) {
+  if (!force) {
+    const cached = Cache.get();
+    if (cached) { renderAll(cached); updateTimestamp(true); return; }
+  } else {
+    Cache.clear();
+  }
+
+  const btn = $('refresh-btn');
+  btn.classList.add('spinning');
+  btn.disabled = true;
+
+  try {
+    const [cnn, vixR, tnxR, wtiR, moveR, fredHY, sp5R, ndxR, soxxR] = await Promise.allSettled([
+      fetchWithFallbacks(CFG.CNN_URL),  // CNN F&G
+      vixFetch(),                        // VIX  (YF v7 → CBOE CDN)
+      tnxFetch(),                        // 10년물 (FRED → Treasury.gov)
+      yfV7Fetch('CL=F'),                 // WTI  (YF v7)
+      yfV7Fetch('^MOVE'),                // MOVE (YF v7)
+      fredFetch('BAMLH0A0HYM2'),         // HY Spread (FRED)
+      yfChartFetch('^GSPC'),             // S&P500 차트 (YF v8)
+      yfChartFetch('^NDX'),              // 나스닥100 차트 (YF v8)
+      yfChartFetch('SOXX')               // SOXX 차트 (YF v8)
+    ]);
+
+    const get = (s, fn) => { try { return s.status === 'fulfilled' ? fn(s.value) : null; } catch(_) { return null; } };
+
+    const fngRaw = cnn.status === 'fulfilled' ? cnn.value?.fear_and_greed : null;
+
+    const result = {
+      fg:   fngRaw ? { cur: fngRaw.score, prev: fngRaw.previous_close } : null,
+      vix:  get(vixR,  s => s),
+      tnx:  get(tnxR,  s => s),
+      wti:  get(wtiR,  s => s),
+      move: get(moveR, s => s),
+      hy:   get(fredHY, fredLatest),
+      charts: {
+        sp5:  get(sp5R,  s => s) || { dates: [], prices: [] },
+        ndx:  get(ndxR,  s => s) || { dates: [], prices: [] },
+        soxx: get(soxxR, s => s) || { dates: [], prices: [] }
+      }
+    };
+
+    Cache.set(result);
+    renderAll(result);
+    updateTimestamp(false);
+  } catch(err) {
+    console.error(err);
+    $('banner-level').textContent = '❌ 데이터 로딩 실패';
+    $('banner-detail').textContent = '🔄 새로고침 버튼을 눌러 재시도하세요';
+  } finally {
+    btn.classList.remove('spinning');
+    btn.disabled = false;
+  }
+}
+
+function updateTimestamp(fromCache) {
+  const now = new Date();
+  const hh  = String(now.getHours()).padStart(2, '0');
+  const mm  = String(now.getMinutes()).padStart(2, '0');
+  $('last-updated').textContent = `마지막 갱신: ${hh}:${mm}${fromCache ? ' (캐시)' : ''}`;
+}
+
+function manualRefresh() { loadAllData(true); }
+
+// ── ENTRY POINT ───────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const d = new Date();
+  $('banner-date').textContent = d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+  loadAllData(false);
+});
+</script>
+</body>
+</html>
