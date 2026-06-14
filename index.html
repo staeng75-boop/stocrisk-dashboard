@@ -342,11 +342,11 @@ const CFG = {
   // 임계값 — 필요 시 여기서 수정
   THR: {
     fg:      { safeL: 40, safeH: 60, normL: 25, normH: 75 },
-    vix:     { safe: 15, normal: 20, caution: 30 },
-    tnxChg:  { safe: 0.05, normal: 0.10, caution: 0.20 }, // %p 일간 변화
-    hy:      { safe: 3.0, normal: 4.0, caution: 6.0 },    // FRED % (×100 = bp)
-    move:    { safe: 80,  normal: 110, caution: 150 },
-    wtiChg:  { safe: 2,   normal: 5,   caution: 10 }       // % 변화율
+    vix:     { safe: 15,   normal: 20,   caution: 30   },
+    tnxChg:  { safe: 0.05, normal: 0.15, caution: 0.25 },
+    hy:      { safe: 3.0,  normal: 4.5,  caution: 7.0  },
+    move:    { safe: 90,   normal: 120,  caution: 160  },
+    wtiChg:  { safe: 2,    normal: 4,    caution: 7    }
   }
 };
 
