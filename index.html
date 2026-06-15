@@ -343,10 +343,10 @@ const CFG = {
   THR: {
     fg:      { safeL: 40, safeH: 60, normL: 25, normH: 75 },
     vix:     { safe: 15,   normal: 20,   caution: 30   },
-    tnxChg:  { safe: 0.05, normal: 0.15, caution: 0.25 },
-    hy:      { safe: 3.0,  normal: 4.5,  caution: 7.0  },
-    move:    { safe: 90,   normal: 120,  caution: 160  },
-    wtiChg:  { safe: 2,    normal: 4,    caution: 7    }
+    tnx:     { safe: 4.0,  normal: 4.5,  caution: 5.0  },
+    hy:      { safe: 3.5,  normal: 5.0,  caution: 7.0  },
+    move:    { safe: 80,   normal: 100,  caution: 120  },
+    wti:     { safe: 70,   normal: 85,   caution: 100  }
   }
 };
 
@@ -767,7 +767,7 @@ function renderAll(d) {
   if (tnx?.cur != null) {
     const val  = +tnx.cur.toFixed(3);
     const chg  = tnx.prev != null ? +(val - tnx.prev).toFixed(3) : null;
-    lv.tnx = riskLevel('tnxChg', chg ?? 0);
+    lv.tnx = riskLevel('tnx', val);
     const dir    = chg == null ? '' : chg >= 0 ? '▲' : '▼';
     const chgTxt = chg != null ? `${dir} ${Math.abs(chg).toFixed(3)}%p` : '';
     const chgCls = chg == null ? 'chg-neu' : chg >= 0 ? 'chg-up' : 'chg-down';
@@ -797,7 +797,7 @@ function renderAll(d) {
   if (wti?.cur != null) {
     const val    = +wti.cur.toFixed(2);
     const chgPct = wti.prev != null ? +((val - wti.prev) / wti.prev * 100).toFixed(2) : null;
-    lv.wti = riskLevel('wtiChg', chgPct ?? 0);
+    lv.wti = riskLevel('wti', val);
     const dir    = chgPct == null ? '' : chgPct >= 0 ? '▲' : '▼';
     const chgTxt = chgPct != null ? `${dir} ${Math.abs(chgPct).toFixed(2)}%` : '';
     const chgCls = chgPct == null ? 'chg-neu' : chgPct >= 0 ? 'chg-pup' : 'chg-pdn';
