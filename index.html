@@ -17,7 +17,7 @@
       --muted:      #8892b0;
 
       --safe:       #4caf50;  --safe-bg:    #0d2610;
-      --greed:      #8bc34a;  --greed-bg:   #1a2a08;
+      --greed:      #c6e03a;  --greed-bg:   #252800;
       --normal:     #ffc107;  --normal-bg:  #2d2000;
       --caution:    #ff9800;  --caution-bg: #2d1500;
       --danger:     #f44336;  --danger-bg:  #2d0a0a;
@@ -246,7 +246,7 @@
 <div class="metric-grid">
 
   <div class="metric-card card-unknown" id="card-fg">
-    <div class="metric-name">공포탐욕지수</div>
+    <div class="metric-name">Fear &amp; Greed</div>
     <div class="metric-value" id="val-fg">—</div>
     <div class="metric-change chg-neu" id="chg-fg">&nbsp;</div>
     <span class="metric-badge badge-unknown" id="bdg-fg">조회중</span>
@@ -341,7 +341,7 @@ const CFG = {
 
   // 임계값 — 필요 시 여기서 수정
   THR: {
-    fg:      { safeL: 40, safeH: 60, normL: 25, normH: 75 },
+    fg:      { danger: 24, caution: 44, normal: 54, greed: 74 }, // 5단계: 극단공포/공포/중립/탐욕/극단탐욕
     vix:     { safe: 15,   normal: 20,   caution: 30   },
     tnx:     { safe: 4.0,  normal: 4.5,  caution: 5.0  },
     hy:      { safe: 3.5,  normal: 5.0,  caution: 7.0  },
@@ -613,11 +613,11 @@ function fredLatestTwo(json) {
 
 // ── RISK ENGINE ───────────────────────────────────────────────────────────────
 function fgLabel(val) {
-  if (val <= 25) return 'Extreme Fear';
-  if (val <= 49) return 'Fear';
-  if (val === 50) return 'Neutral';
-  if (val <= 74) return 'Greed';
-  return 'Extreme Greed';
+  if (val <= 24) return '극단적 공포';
+  if (val <= 44) return '공포';
+  if (val <= 54) return '중립';
+  if (val <= 74) return '탐욕';
+  return '극단적 탐욕';
 }
 
 function riskLevel(metric, val) {
@@ -625,11 +625,11 @@ function riskLevel(metric, val) {
   const T = CFG.THR;
 
   if (metric === 'fg') {
-    if (val <= 25) return 'danger';   // Extreme Fear
-    if (val <= 49) return 'caution';  // Fear
-    if (val === 50) return 'normal';  // Neutral
-    if (val <= 74) return 'greed';    // Greed (연두)
-    return 'safe';                    // Extreme Greed
+    if (val <= 24) return 'danger';   // 극단적 공포 (빨강)
+    if (val <= 44) return 'caution';  // 공포 (주황)
+    if (val <= 54) return 'normal';   // 중립 (노랑)
+    if (val <= 74) return 'greed';    // 탐욕 (연한녹색)
+    return 'safe';                    // 극단적 탐욕 (녹색)
   }
   const thr = T[metric];
   if (!thr) return 'normal';
@@ -819,7 +819,7 @@ function renderAll(d) {
   // 체크리스트 행
   const tnxChg = (tnx?.cur != null && tnx?.prev != null) ? (tnx.cur - tnx.prev) : null;
   const clRows = [
-    { name: '공포탐욕지수',   valStr: fg?.cur  != null ? String(Math.round(fg.cur))       : 'N/A', lv: lv.fg   || 'unknown', badgeLbl: fg?.cur != null ? fgLabel(Math.round(fg.cur)) : null },
+    { name: 'Fear &amp; Greed', valStr: fg?.cur  != null ? String(Math.round(fg.cur))       : 'N/A', lv: lv.fg   || 'unknown', badgeLbl: fg?.cur != null ? fgLabel(Math.round(fg.cur)) : null },
     { name: 'VIX 변동성지수', valStr: vix?.cur != null ? vix.cur.toFixed(2)               : 'N/A', lv: lv.vix  || 'unknown' },
     { name: '10년물 금리',    valStr: tnx?.cur != null
         ? tnx.cur.toFixed(2) + '%' + (tnxChg != null ? ` (${tnxChg >= 0 ? '+' : ''}${tnxChg.toFixed(3)}%p)` : '')
